@@ -10,6 +10,11 @@ n,h,wについては最大限注意していますが、念の為自然数を引
 https://ja.wikipedia.org/wiki/%E3%83%9E%E3%83%B3%E3%83%87%E3%83%AB%E3%83%96%E3%83%AD%E9%9B%86%E5%90%88
 =end
 require 'complex'
+require 'benchmark'
+
+def dist(dx,dy,w,h)
+	return ((dx.to_f/w)**2+(dy.to_f/h)**2)**0.5
+end
 
 def mandel(n = 500, h = 600, w = 600)
 	#n,h,wが自然数かどうか判定します。変数を文字列にキャストし、正規表現で落としています。
@@ -26,9 +31,10 @@ def mandel(n = 500, h = 600, w = 600)
 	#初期値を設定します。
 	#c[i][j]=Complex(-2.0+4.0*i/(h-1),2.0-4.0*j/(w-1))
 	#(i,j)=(0,0)を(x,y)=(-2.1,1.35)に、(i,j)=(h-1,w-1)を(x,y)=(0.6,-1.35)に当てて、残りは均等になるようにマスを振っています。
+	l=2.7
 	c = Array.new(h){ |i|
 		Array.new(w){ |j|
-			Complex(-2.1 + 2.7 * j / (w - 1), 1.35 - 2.7 * i / (h - 1))
+			Complex(-l + 0.6 + l * j / (w - 1), l / 2 - l * i / (h - 1))
 		}
 	}
 	#z_0=0です。
@@ -38,7 +44,7 @@ def mandel(n = 500, h = 600, w = 600)
 	div = Array.new(h){ Array.new(w,-1) }
 	#ここで発散をシミュレートします。
 	n.times do |t|
-		puts "t="+t.to_s
+		#puts "t="+t.to_s
 		for i in 0...h do
 			for j in 0...w do
 				#z_nが既にinfiniteかnanならこれ以上計算しません。
@@ -55,10 +61,9 @@ def mandel(n = 500, h = 600, w = 600)
 	end
 
 	#着色について。
-	#青と白の色で、それぞれグラデーション処理を行った後、合成を行って作ります。
-	#取り敢えず両方の色を記録する配列を生成。初期値は真っ黒。
-	blue = Array.new(h) { Array.new(w,0) }
-	white = Array.new(h) { Array.new(w,0) } 
+	#白色で、グラデーション処理を行った後、背景を青にして合成を行って作ります。
+	#取り敢えず色を記録する配列を生成。初期値は真っ黒。
+	white = Array.new(h) { Array.new(w,0) }
 	#「発散した」=「zがfiniteでなくなった」として、そのタイミングで発散速度を考えます。
 	minSpeed=Float::INFINITY
 	maxSpeed=0.0
@@ -72,25 +77,51 @@ def mandel(n = 500, h = 600, w = 600)
 			end
 		end
 	end
-	
+
+	#青色の着色
 	#div[i][j]!=-1の範囲を、(maxSpeed-div[i][j])/(maxSpeed-minSpeed)*0.5+0.5で着色。
 	#発散した範囲を、黒（速い）〜青（遅い）、黒（発散しない）で着色します。
+	#と同時にグラデーションをつけます。範囲はそこを中心に0.1の円。
 	for i in 0...h do
 		for j in 0...w do
+			#p [i,j]
 			if div[i][j]!=-1 then
-				blue[i][j]=(maxSpeed-div[i][j]).to_f/(maxSpeed-minSpeed)
+				v=(maxSpeed-div[i][j]).to_f/(maxSpeed-minSpeed)
+				dx=w.div(25)
+				dy=h.div(25)
+				white[i][j]=v
+				for y in -dy..dy do
+					if i+y<0||h<=i+y then
+						next
+					end
+					for x in -dx..dx do
+						if 0<=j+x&&j+x<w then
+							if dist(x,y,dx,dy)<=1&&div[i+y][j+x]!=-1 then
+								white[i+y][j+x]+=v*dist(x,y,dx,dy)
+							end
+						end
+					end
+				end
 			end
 		end
 	end
+	show(white)
 
-	#グラデーションについて。
-	#グラデーションは、あるマスの値を減衰させながら周囲のマスに浸透させる、というのを全てのマスに対して同時に行います。
-	#「同時」と書きましたが、影響を与える際にそのマスは他のマスの影響を受けないよう、操作結果を別の配列に格納するだけです。
-	puts "start:gradation"
-	imageBlue=Array.new(h){Array.new(w,0)}
+	#合成。背景は0x0005c=[0,0,0.36]
+	image=Array.new(h){Array.new(w){[0,0,0.36]}}
 	for i in 0...h do
 		for j in 0...w do
-
+			if div[i][j]==-1 then
+				image[i][j]=[0,0,0]
+			else
+				image[i][j]=[white[i][j],white[i][j],[1.0,image[i][j][2]+white[i][j]].max]
+			end
+		end
+	end
+	show(image)
 end
 
-mandel(200,500,500)
+result=Benchmark.realtime do
+	mandel(200,500,500)
+end
+puts "used times: #{result}s"
