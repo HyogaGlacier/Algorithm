@@ -2,10 +2,10 @@
 マンデルブロ集合を出力します。ここではマンデルブロ集合については一切解説しません。
 引数
 n:繰り返し処理を行う回数。あまり回数が少ないと判定がうまく行きません。
-h:画像の高さ。h>=2が条件です。
-w:画像の幅。w>=2が条件です。
-|x|,|y|<=2の範囲を、画像を分割して出力します。そのため、使用時はh=wが望ましいです。
-n,h,wについては最大限注意していますが、念の為自然数を引数として取るようにお願いします。逆に、この方法を回避できるものがあれば教えてください。
+h:画像の高さ。h>=2が条件です。100以上を推奨します
+w:画像の幅。w>=2が条件です。100以上を推奨します
+正方形の範囲をw×hに分割して出力します。そのため、使用時はh=wが望ましいです。
+n,h,wについてはまずいものを入れた時に回避できるよう注意していますが、念の為自然数を引数として取るようにお願いします。逆に、この方法を回避できるものがあれば教えてください。
 参考URL(rubyのドキュメントを除く)
 https://ja.wikipedia.org/wiki/%E3%83%9E%E3%83%B3%E3%83%87%E3%83%AB%E3%83%96%E3%83%AD%E9%9B%86%E5%90%88
 =end
@@ -30,7 +30,7 @@ def mandel(n = 500, h = 600, w = 600)
 
 	#初期値を設定します。
 	#c[i][j]=Complex(-2.0+4.0*i/(h-1),2.0-4.0*j/(w-1))
-	#(i,j)=(0,0)を(x,y)=(-2.1,1.35)に、(i,j)=(h-1,w-1)を(x,y)=(0.6,-1.35)に当てて、残りは均等になるようにマスを振っています。
+	#(i,j)=(0,0)が(x,y)=(-2.7,1.35)、(i,j)=(w-1,h-1)が(x,y)=(0.6,-1.35)として分割します
 	l=2.7
 	c = Array.new(h){ |i|
 		Array.new(w){ |j|
@@ -71,7 +71,7 @@ def mandel(n = 500, h = 600, w = 600)
 	for i in 0...h do
 		for j in 0...w do
 			if div[i][j]!=-1 then
-				div[i][j]=(n-div[i][j])
+				div[i][j]=(n-div[i][j])**2
 				minSpeed=[minSpeed,div[i][j]].min
 				maxSpeed=[maxSpeed,div[i][j]].max
 			end
@@ -81,47 +81,58 @@ def mandel(n = 500, h = 600, w = 600)
 	#青色の着色
 	#div[i][j]!=-1の範囲を、(maxSpeed-div[i][j])/(maxSpeed-minSpeed)*0.5+0.5で着色。
 	#発散した範囲を、黒（速い）〜青（遅い）、黒（発散しない）で着色します。
-	#と同時にグラデーションをつけます。範囲はそこを中心に0.1の円。
 	for i in 0...h do
 		for j in 0...w do
 			#p [i,j]
 			if div[i][j]!=-1 then
-				v=(maxSpeed-div[i][j]).to_f/(maxSpeed-minSpeed)
-				dx=w.div(25)
-				dy=h.div(25)
-				white[i][j]=v
-				for y in -dy..dy do
-					if i+y<0||h<=i+y then
-						next
-					end
-					for x in -dx..dx do
-						if 0<=j+x&&j+x<w then
-							if dist(x,y,dx,dy)<=1&&div[i+y][j+x]!=-1 then
-								white[i+y][j+x]+=v*dist(x,y,dx,dy)
-							end
-						end
-					end
-				end
+				white[i][j]=(maxSpeed-div[i][j]).to_f/(maxSpeed-minSpeed)
 			end
 		end
 	end
-	show(white)
+	#グラデーションを行います。そのマス+8近傍の平均です。
+	rep=[h,w].max.div(100)
+	rep.times{
+		bw=white
+		white=Array.new(h){Array.new(w,0.0)}
+		for i in 0...h do
+			for j in 0...w do
+				if div[i][j]==-1 then
+					next
+				end
+				cnt=0
+				for y in i-1..i+1 do
+					for x in j-1..j+1 do
+						if y<0||h<=y||x<0||w<=x then
+							next
+						end
+						if div[y][x]==-1 then
+							next
+						end
+						cnt+=1
+						white[i][j]+=bw[y][x]
+					end
+				end
+				white[i][j]/=cnt.to_f
+			end
+		end
+	}
 
-	#合成。背景は0x0005c=[0,0,0.36]
-	image=Array.new(h){Array.new(w){[0,0,0.36]}}
+	#合成。背景は[0,0,0.2]
+	image=Array.new(h){Array.new(w){[0,0,0.1]}}
 	for i in 0...h do
 		for j in 0...w do
 			if div[i][j]==-1 then
 				image[i][j]=[0,0,0]
 			else
-				image[i][j]=[white[i][j],white[i][j],[1.0,image[i][j][2]+white[i][j]].max]
+				image[i][j]=[white[i][j],white[i][j],[1.0,image[i][j][2]+white[i][j]].min]
 			end
 		end
 	end
 	show(image)
 end
 
-result=Benchmark.realtime do
+#時間計測の際はコメントを外してください。
+#result=Benchmark.realtime do
 	mandel(200,500,500)
-end
-puts "used times: #{result}s"
+#end
+#puts "used times: #{result}s"
